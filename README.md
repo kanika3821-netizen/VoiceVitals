@@ -56,7 +56,8 @@ Always consult a qualified neurologist for evaluation.
 ---
 
 ## 👨‍💻 Built By
-Kanika — First Year Student
+Kanika — First Year DSAI Student
+Thapar Institute of Engineering & Technology, Punjab
 Built for Samsung Solve for Tomorrow 2026
 
 ---
