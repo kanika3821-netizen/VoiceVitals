@@ -56,7 +56,7 @@ Always consult a qualified neurologist for evaluation.
 ---
 
 ## 👨‍💻 Built By
-[Your Name] — First Year CS Student
+Kanika — First Year Student
 Built for Samsung Solve for Tomorrow 2026
 
 ---
