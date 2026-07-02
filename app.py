@@ -148,12 +148,20 @@ if st.button("🎙️ Begin Voice Analysis",
     status.info("🔴 Recording in progress — speak naturally")
 
     sample_rate = 44100
-    audio_data = sd.rec(
+    try:
+        audio_data = sd.rec(
         int(duration * sample_rate),
         samplerate=sample_rate,
         channels=1,
         dtype='float32',
         device=1
+    )
+    except Exception:
+        audio_data = sd.rec(
+        int(duration * sample_rate),
+        samplerate=sample_rate,
+        channels=1,
+        dtype='float32'
     )
 
     for i in range(duration):
