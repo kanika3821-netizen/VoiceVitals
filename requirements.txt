@@ -8,5 +8,5 @@ joblib
 scipy
 matplotlib
 reportlab
-audiorecorder
+streamlit-mic-recorder
 soundfile

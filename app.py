@@ -1,14 +1,13 @@
 import streamlit as st
 import librosa
 import numpy as np
-import sounddevice as sd
 import matplotlib.pyplot as plt
-import time
 import joblib
 import json
 import os
 import scipy.stats
 from datetime import datetime
+from streamlit_mic_recorder import mic_recorder
 from extract_features_v2 import extract_parkinsons_features
 from generate_report import generate_pdf_report
 
@@ -40,7 +39,8 @@ def save_result(risk_pct, healthy_pct):
         with open('voice_history.json', 'r') as f:
             history = json.load(f)
     history.append({
-        'date': datetime.now().strftime('%d %b %Y %H:%M'),
+        'date': datetime.now().strftime(
+            '%d %b %Y %H:%M'),
         'risk_score': round(risk_pct, 1),
         'healthy_score': round(healthy_pct, 1)
     })
@@ -61,22 +61,14 @@ st.markdown("""
 <style>
 .main { background-color: #0E1117; }
 h1 {
-    background: linear-gradient(135deg, #1E88E5, #64B5F6);
+    background: linear-gradient(
+        135deg, #1E88E5, #64B5F6);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     font-weight: 800;
     font-size: 2.8rem;
 }
 h2, h3 { color: #64B5F6; font-weight: 600; }
-.stButton > button {
-    background: linear-gradient(135deg, #1E88E5, #0D47A1);
-    color: white;
-    border-radius: 12px;
-    padding: 0.8rem 2rem;
-    font-weight: 700;
-    border: none;
-    width: 100%;
-}
 [data-testid="metric-container"] {
     background: #1E2130;
     border-radius: 12px;
@@ -103,7 +95,8 @@ st.markdown(
     "using only your phone microphone."
 )
 
-with st.expander("ℹ️ What does VoiceVitals actually do?"):
+with st.expander(
+        "ℹ️ What does VoiceVitals actually do?"):
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("""
@@ -128,79 +121,61 @@ st.divider()
 # ── Recording ────────────────────────────────────────
 st.subheader("🎙️ Start Your Screening")
 st.write(
-    "Speak naturally for the selected duration. "
+    "Click the microphone button below. "
+    "Speak naturally for 15-30 seconds. "
     "Read anything aloud or describe your day."
 )
 
-duration = st.select_slider(
-    "Recording duration",
-    options=[10, 15, 20, 25, 30],
-    value=15
+recording = mic_recorder(
+    start_prompt="🎙️ Click to Start Recording",
+    stop_prompt="⏹️ Click to Stop Recording",
+    key="recorder"
 )
 
-if st.button("🎙️ Begin Voice Analysis",
-             use_container_width=True,
-             type="primary"):
+if recording:
+    st.success("✅ Recording captured — analyzing...")
 
-    progress_bar = st.progress(0)
-    status = st.empty()
-    countdown = st.empty()
-    status.info("🔴 Recording in progress — speak naturally")
-
-    sample_rate = 44100
-    try:
-        audio_data = sd.rec(
-        int(duration * sample_rate),
-        samplerate=sample_rate,
-        channels=1,
-        dtype='float32',
-        device=1
-    )
-    except Exception:
-        audio_data = sd.rec(
-        int(duration * sample_rate),
-        samplerate=sample_rate,
-        channels=1,
-        dtype='float32'
-    )
-
-    for i in range(duration):
-        time.sleep(1)
-        progress_bar.progress((i + 1) / duration)
-        remaining = duration - i - 1
-        if remaining > 0:
-            countdown.caption(
-                f"⏱️ {remaining} seconds remaining")
-
-    sd.wait()
-    audio = audio_data.flatten()
-    countdown.empty()
-    status.success("✅ Recording complete — analyzing...")
-
-    with st.spinner("🔬 Analyzing vocal biomarkers..."):
-        time.sleep(1.5)
+    with st.spinner(
+            "🔬 Analyzing vocal biomarkers..."):
         try:
-            feature_vector = extract_parkinsons_features(
-                audio, sample_rate)
+            sample_rate = recording['sample_rate']
+            audio_array = np.frombuffer(
+                recording['bytes'],
+                dtype=np.int16
+            ).astype(np.float32)
+            audio_array = audio_array / (2**15)
+
+            feature_vector = \
+                extract_parkinsons_features(
+                    audio_array, sample_rate)
+
             expected = 22
             if len(feature_vector) < expected:
                 feature_vector = np.pad(
                     feature_vector,
-                    (0, expected - len(feature_vector)))
-            feature_vector = feature_vector[:expected]
-            scaled = scaler.transform([feature_vector])
+                    (0, expected - len(
+                        feature_vector)))
+            feature_vector = \
+                feature_vector[:expected]
+
+            scaled = scaler.transform(
+                [feature_vector])
             proba = model.predict_proba(scaled)[0]
-            st.session_state.healthy_pct = proba[0] * 100
-            st.session_state.risk_pct = proba[1] * 100
+            st.session_state.healthy_pct = \
+                proba[0] * 100
+            st.session_state.risk_pct = \
+                proba[1] * 100
             st.session_state.analysis_done = True
-            st.session_state.audio_data = audio.tolist()
+            st.session_state.audio_data = \
+                audio_array.tolist()
+
+            save_result(
+                st.session_state.risk_pct,
+                st.session_state.healthy_pct)
+
         except Exception as e:
             st.error(f"Analysis error: {e}")
             st.stop()
-
-    save_result(
-        st.session_state.risk_pct,
-        st.session_state.healthy_pct)
 
 # ── Results ───────────────────────────────────────────
 if st.session_state.analysis_done:
@@ -212,46 +187,57 @@ if st.session_state.analysis_done:
 
     col1, col2 = st.columns(2)
     with col1:
-        st.metric("🟢 Healthy Pattern Match",
-                  f"{healthy_pct:.1f}%")
+        st.metric(
+            "🟢 Healthy Pattern Match",
+            f"{healthy_pct:.1f}%")
     with col2:
-        st.metric("🔴 At-Risk Pattern Match",
-                  f"{risk_pct:.1f}%")
+        st.metric(
+            "🔴 At-Risk Pattern Match",
+            f"{risk_pct:.1f}%")
 
     st.progress(healthy_pct / 100)
 
     if risk_pct > 65:
         st.warning(
-            "⚠️ Your voice pattern shows similarity to "
-            "at-risk profiles in our clinical training data. "
-            "This does NOT mean you have Parkinson's disease. "
-            "We recommend consulting a neurologist.")
+            "⚠️ Your voice pattern shows similarity "
+            "to at-risk profiles in our clinical "
+            "training data. This does NOT mean you "
+            "have Parkinson's disease. We recommend "
+            "consulting a neurologist.")
     elif risk_pct > 40:
         st.info(
-            "ℹ️ Your voice pattern shows some at-risk "
-            "indicators. Monitor your voice over time.")
+            "ℹ️ Your voice pattern shows some "
+            "at-risk indicators. Monitor your voice "
+            "over time.")
     else:
         st.success(
-            "✅ Your voice pattern closely matches healthy "
-            "profiles in our clinical training data.")
+            "✅ Your voice pattern closely matches "
+            "healthy profiles in our clinical "
+            "training data.")
 
     # ── Waveform ─────────────────────────────────────
     if st.session_state.audio_data is not None:
         st.divider()
         st.markdown("### 🌊 Your Voice Pattern")
-        audio = np.array(st.session_state.audio_data)
+        audio = np.array(
+            st.session_state.audio_data)
         sample_rate = 44100
         fig, ax = plt.subplots(figsize=(10, 2.5))
+        plot_len = min(
+            len(audio), sample_rate * 5)
         time_axis = np.linspace(
-            0, 15, len(audio[:sample_rate * 5]))
-        ax.plot(time_axis, audio[:sample_rate * 5],
-                color='#1E88E5', linewidth=0.6, alpha=0.8)
-        ax.fill_between(time_axis,
-                        audio[:sample_rate * 5],
-                        alpha=0.2, color='#1E88E5')
+            0, plot_len/sample_rate, plot_len)
+        ax.plot(
+            time_axis, audio[:plot_len],
+            color='#1E88E5',
+            linewidth=0.6, alpha=0.8)
+        ax.fill_between(
+            time_axis, audio[:plot_len],
+            alpha=0.2, color='#1E88E5')
         ax.set_facecolor('#0E1117')
         fig.patch.set_facecolor('#0E1117')
-        ax.set_xlabel("Time (seconds)", color='white')
+        ax.set_xlabel(
+            "Time (seconds)", color='white')
         ax.tick_params(colors='white')
         for spine in ax.spines.values():
             spine.set_edgecolor('#333')
@@ -263,26 +249,32 @@ if st.session_state.analysis_done:
         st.divider()
         st.markdown("### 📈 Your Trend Over Time")
         dates = [h['date'] for h in history]
-        risk_scores = [h['risk_score'] for h in history]
+        risk_scores = [
+            h['risk_score'] for h in history]
         healthy_scores = [
             h['healthy_score'] for h in history]
+
         fig2, ax2 = plt.subplots(figsize=(10, 3))
-        ax2.plot(range(len(dates)), risk_scores,
-                 marker='o', color='#EF5350',
-                 label='At-Risk', linewidth=2)
-        ax2.plot(range(len(dates)), healthy_scores,
-                 marker='o', color='#66BB6A',
-                 label='Healthy', linewidth=2)
+        ax2.plot(
+            range(len(dates)), risk_scores,
+            marker='o', color='#EF5350',
+            label='At-Risk', linewidth=2)
+        ax2.plot(
+            range(len(dates)), healthy_scores,
+            marker='o', color='#66BB6A',
+            label='Healthy', linewidth=2)
         ax2.set_xticks(range(len(dates)))
         ax2.set_xticklabels(
             dates, rotation=45,
-            ha='right', fontsize=8, color='white')
+            ha='right', fontsize=8,
+            color='white')
         ax2.set_ylabel("Score %", color='white')
         ax2.set_facecolor('#0E1117')
         fig2.patch.set_facecolor('#0E1117')
         ax2.tick_params(colors='white')
         ax2.legend(
-            facecolor='#1E2130', labelcolor='white')
+            facecolor='#1E2130',
+            labelcolor='white')
         for spine in ax2.spines.values():
             spine.set_edgecolor('#333')
         plt.tight_layout()
@@ -299,7 +291,8 @@ if st.session_state.analysis_done:
     if st.button("📄 Generate PDF Report"):
         with st.spinner("Generating report..."):
             name = (patient_name
-                    if patient_name else "Anonymous")
+                    if patient_name
+                    else "Anonymous")
             try:
                 filename = generate_pdf_report(
                     healthy_pct, risk_pct, name)
@@ -312,7 +305,8 @@ if st.session_state.analysis_done:
                     mime="application/pdf"
                 )
                 st.success(
-                    "✅ Click button above to download!")
+                    "✅ Click button above "
+                    "to download!")
             except Exception as e:
                 st.error(f"Report error: {e}")
 
