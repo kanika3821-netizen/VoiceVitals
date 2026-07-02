@@ -6,6 +6,8 @@ pitch stability, jitter, shimmer — linked to early
 neurological motor symptoms associated with Parkinson's.
 
 ---
+## 🌐 Live Demo
+[Click here to try VoiceVitals]https://voicevitals-aytddpinq4heg4b6xguvhd.streamlit.app/
 
 ## 📊 Validation
 - Dataset: UCI Parkinson's Voice Dataset
