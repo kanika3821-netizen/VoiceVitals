@@ -35,7 +35,9 @@ neurological motor symptoms associated with Parkinson's.
 
 ## 🚀 How To Run
 
-1. Clone this repository
+1. Clone this repository:
+   git clone https://github.com/kanika3821-netizen/VoiceVitals.git
+   cd VoiceVitals
 2. Install dependencies:
    pip install -r requirements.txt
 3. Download UCI Parkinson's dataset from Kaggle
